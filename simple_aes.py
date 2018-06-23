@@ -1,10 +1,10 @@
 import binascii
 import secrets
 
+# For debugging:
 # import code; code.interact(local=dict(globals(), **locals()))
 
 def encrypt(plaintext, key):
-    key = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
     print("Encrypting:", plaintext)
     expanded_key = _expand_key(key)
     print("Expanded key length:", len(expanded_key))
@@ -27,51 +27,40 @@ def _expand_key(initial_key):
 
     key_bytes = key_bytes[0:required_key_bytes]
 
-    i = 0
+    i = 1
     while len(key_bytes) < required_expansion_bytes:
-        last_4 = key_bytes[-4:]
-        new_bytes = _key_schedule_core(last_4, i)
+        # Generate 32 more bytes
+        last_4 = key_bytes[-4:] 
+        new_bytes = last_4
+        new_bytes = _key_schedule_core(new_bytes, i)
         i = i + 1
-
-        # TODO: better names for these
-        # TODO: wrap into function
-        key_bytes_ago_index = (len(key_bytes) - required_key_bytes)
-        key_bytes_ago = key_bytes[key_bytes_ago_index:(key_bytes_ago_index + 4)]
-        key_bytes = key_bytes + bytearray(a ^ b for a, b in zip(new_bytes, key_bytes_ago))
+        new_bytes = _four_byte_xor(key_bytes, new_bytes, required_key_bytes)
+        key_bytes = key_bytes + new_bytes
 
         # Create 4 bytes 3 times for 12 more bytes
         for n in range(3):
             last_4 = key_bytes[-4:]
             new_bytes = last_4
-
-            key_bytes_ago_index = (len(key_bytes) - required_key_bytes)
-            key_bytes_ago = key_bytes[key_bytes_ago_index:(key_bytes_ago_index + 4)]
-            key_bytes = key_bytes + bytearray(a ^ b for a, b in zip(new_bytes, key_bytes_ago))
+            key_bytes = key_bytes + _four_byte_xor(key_bytes, new_bytes, required_key_bytes)
 
         # then add 4 more bytes
         last_4 = key_bytes[-4:]
         new_bytes = bytearray(map(_s_box, last_4))
-        key_bytes_ago_index = (len(key_bytes) - required_key_bytes)
-        key_bytes_ago = key_bytes[key_bytes_ago_index:(key_bytes_ago_index + 4)]
-        key_bytes = key_bytes + bytearray(a ^ b for a, b in zip(new_bytes, key_bytes_ago))
+        key_bytes = key_bytes + _four_byte_xor(key_bytes, new_bytes, required_key_bytes)
 
     return key_bytes[0:required_expansion_bytes]
 
 def _key_schedule_core(word, i):
-    output = word
-
     # Rotate the output eight bits to the left
-    output.append(output.pop(0))
+    word.append(word.pop(0))
 
-    # Apply s-box on all four individual bytes
-    # for byte in output:
-    #     print("byte", byte, _s_box(byte))
-    output = bytearray(map(_s_box, output))
+    # Perform s-box substitution for each byte
+    word = bytearray(map(_s_box, word))
 
-    # For the leftmost byte, xor the byte with rcon operation output
-    output[0] = _rcon(i) ^ output[0]
+    # xor the first byte with the rcon value for the current iteration
+    word[0] = _rcon(i) ^ word[0]
 
-    return output
+    return word
 
 def _s_box(byte):
     sbox = [0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
@@ -110,5 +99,65 @@ def _rcon(i):
     0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36, 0x6c, 0xd8, 0xab, 0x4d, 0x9a, 0x2f, 0x5e, 0xbc, 0x63, 
     0xc6, 0x97, 0x35, 0x6a, 0xd4, 0xb3, 0x7d, 0xfa, 0xef, 0xc5, 0x91, 0x39, 0x72, 0xe4, 0xd3, 0xbd, 
     0x61, 0xc2, 0x9f, 0x25, 0x4a, 0x94, 0x33, 0x66, 0xcc, 0x83, 0x1d, 0x3a, 0x74, 0xe8, 0xcb, 0x8d]
-    
+
     return rcon_table[i]
+
+    
+
+def _four_byte_xor(key, new_bytes, num_bytes_ago):
+    start_index = (len(key) - num_bytes_ago)
+    end_index = start_index + 4
+    other_bytes = key[start_index:end_index]
+    return bytearray(a ^ b for a, b in zip(new_bytes, other_bytes))
+
+# Test Cases from http://www.samiam.org/key-schedule.html
+# 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00:
+# 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+# 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+# 62 63 63 63 62 63 63 63 62 63 63 63 62 63 63 63 
+# aa fb fb fb aa fb fb fb aa fb fb fb aa fb fb fb 
+# 6f 6c 6c cf 0d 0f 0f ac 6f 6c 6c cf 0d 0f 0f ac 
+# 7d 8d 8d 6a d7 76 76 91 7d 8d 8d 6a d7 76 76 91 
+# 53 54 ed c1 5e 5b e2 6d 31 37 8e a2 3c 38 81 0e 
+# 96 8a 81 c1 41 fc f7 50 3c 71 7a 3a eb 07 0c ab 
+# 9e aa 8f 28 c0 f1 6d 45 f1 c6 e3 e7 cd fe 62 e9 
+# 2b 31 2b df 6a cd dc 8f 56 bc a6 b5 bd bb aa 1e 
+# 64 06 fd 52 a4 f7 90 17 55 31 73 f0 98 cf 11 19 
+# 6d bb a9 0b 07 76 75 84 51 ca d3 31 ec 71 79 2f 
+# e7 b0 e8 9c 43 47 78 8b 16 76 0b 7b 8e b9 1a 62 
+# 74 ed 0b a1 73 9b 7e 25 22 51 ad 14 ce 20 d4 3b 
+# 10 f8 0a 17 53 bf 72 9c 45 c9 79 e7 cb 70 63 85
+
+# ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff:
+# ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 
+# ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 
+# e8 e9 e9 e9 17 16 16 16 e8 e9 e9 e9 17 16 16 16 
+# 0f b8 b8 b8 f0 47 47 47 0f b8 b8 b8 f0 47 47 47 
+# 4a 49 49 65 5d 5f 5f 73 b5 b6 b6 9a a2 a0 a0 8c 
+# 35 58 58 dc c5 1f 1f 9b ca a7 a7 23 3a e0 e0 64 
+# af a8 0a e5 f2 f7 55 96 47 41 e3 0c e5 e1 43 80 
+# ec a0 42 11 29 bf 5d 8a e3 18 fa a9 d9 f8 1a cd 
+# e6 0a b7 d0 14 fd e2 46 53 bc 01 4a b6 5d 42 ca 
+# a2 ec 6e 65 8b 53 33 ef 68 4b c9 46 b1 b3 d3 8b 
+# 9b 6c 8a 18 8f 91 68 5e dc 2d 69 14 6a 70 2b de 
+# a0 bd 9f 78 2b ee ac 97 43 a5 65 d1 f2 16 b6 5a 
+# fc 22 34 91 73 b3 5c cf af 9e 35 db c5 ee 1e 05 
+# 06 95 ed 13 2d 7b 41 84 6e de 24 55 9c c8 92 0f 
+# 54 6d 42 4f 27 de 1e 80 88 40 2b 5b 4d ae 35 5e
+
+# 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f:
+# 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 
+# 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f 
+# a5 73 c2 9f a1 76 c4 98 a9 7f ce 93 a5 72 c0 9c 
+# 16 51 a8 cd 02 44 be da 1a 5d a4 c1 06 40 ba de 
+# ae 87 df f0 0f f1 1b 68 a6 8e d5 fb 03 fc 15 67 
+# 6d e1 f1 48 6f a5 4f 92 75 f8 eb 53 73 b8 51 8d 
+# c6 56 82 7f c9 a7 99 17 6f 29 4c ec 6c d5 59 8b 
+# 3d e2 3a 75 52 47 75 e7 27 bf 9e b4 54 07 cf 39 
+# 0b dc 90 5f c2 7b 09 48 ad 52 45 a4 c1 87 1c 2f 
+# 45 f5 a6 60 17 b2 d3 87 30 0d 4d 33 64 0a 82 0a 
+# 7c cf f7 1c be b4 fe 54 13 e6 bb f0 d2 61 a7 df 
+# f0 1a fa fe e7 a8 29 79 d7 a5 64 4a b3 af e6 40 
+# 25 41 fe 71 9b f5 00 25 88 13 bb d5 5a 72 1c 0a 
+# 4e 5a 66 99 a9 f2 4f e0 7e 57 2b aa cd f8 cd ea 
+# 24 fc 79 cc bf 09 79 e9 37 1a c2 3c 6d 68 de 36
