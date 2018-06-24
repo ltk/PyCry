@@ -5,10 +5,60 @@ import secrets
 # import code; code.interact(local=dict(globals(), **locals()))
 
 def encrypt(plaintext, key):
+    
     print("Encrypting:", plaintext)
+    plaintext_bytes = bytearray.fromhex(plaintext.encode('utf-8').hex())
     expanded_key = _expand_key(key)
     print("Expanded key length:", len(expanded_key))
     print("Expanded key:", binascii.hexlify(expanded_key))
+    block_length = 16
+    state_blocks = []
+    while len(plaintext_bytes) > 0:
+        block = bytearray()
+        for n in range(block_length):
+            if len(plaintext_bytes) > 0:
+                block.append(plaintext_bytes.pop(0))
+        state_blocks.append(block)
+    
+    # Cryptographic Message Syntax padding
+    if len(state_blocks[-1]) < block_length:
+        num_padding_bytes = block_length - len(state_blocks[-1])
+        for n in range(num_padding_bytes):
+            state_blocks[-1].append(num_padding_bytes)
+
+    print(state_blocks)
+
+    i = 0
+    while i < len(state_blocks):
+        state_block = state_blocks[i]
+
+        # Do all the things.
+
+        # Rounds 2 - 15
+        for round in range(0, 15):
+            round_key = _round_key(expanded_key, round)
+
+            if round > 0:
+                # Byte Substitution
+                state_block = bytearray(map(_s_box, state_block))
+
+                # Row Transposition
+                state_block = _row_transposition(state_block)
+
+                if round != 14:
+                    print('not last round')
+                    # Column Mixing (not performed on the last round)
+                
+            # Key Block XOR
+            state_block = bytearray(a ^ b for a, b in zip(state_block, round_key))
+            
+
+        # Finish doing all the things.
+
+        state_blocks[i] = state_block
+        i = i + 1
+    
+    print("Round", round, "key", binascii.hexlify(round_key))
 
 def decrypt(ciphertext, key):
     print("Decrypting:", ciphertext)
@@ -102,15 +152,61 @@ def _rcon(i):
 
     return rcon_table[i]
 
-    
-
 def _four_byte_xor(key, new_bytes, num_bytes_ago):
     start_index = (len(key) - num_bytes_ago)
     end_index = start_index + 4
     other_bytes = key[start_index:end_index]
     return bytearray(a ^ b for a, b in zip(new_bytes, other_bytes))
 
-# Test Cases from http://www.samiam.org/key-schedule.html
+def _round_key(full_key, round):
+    round_key_length = 16
+    start_index = round * round_key_length
+    end_index = start_index + round_key_length
+    return full_key[start_index:end_index]
+
+def _row_transposition(block):
+    print("Pre trans", binascii.hexlify(block))
+    rows = [bytearray(), bytearray(), bytearray(), bytearray()]
+    for i in range(len(block)):
+        row_index = i % 4
+        rows[row_index].append(block[i])
+    
+    for row_index in range(len(rows)):
+        row = rows[row_index]
+        for rotations in range(row_index):
+            row.append(row.pop(0))
+
+    output = bytearray([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])
+    
+    row_index = 0
+    while row_index < len(rows):
+        row = rows[row_index]
+        byte_index = 0
+        while byte_index < len(row):  
+            byte = row[byte_index]          
+            output[4 * byte_index + row_index] = byte
+            byte_index = byte_index + 1
+        row_index = row_index + 1
+
+    print("Post trans", binascii.hexlify(output))
+    return output
+
+    # 1st row: 0 bytes to the left
+    # 2nd row: 1 byte to the left
+    # 3rd row: 2 bytes to the left
+    # 4th row: 3 bytes to the left
+
+    # fd 5a 07 d0 
+    # aa 18 c6 de 
+    # cb 5c 50 36 
+    # c8 b7 73 f4
+
+    # fd 5a 07 d0 
+    # 18 c6 de aa 
+    # 50 36 cb 5c 
+    # f4 c8 b7 73
+
+# Key Expansion Test Cases from http://www.samiam.org/key-schedule.html
 # 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00:
 # 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
 # 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
