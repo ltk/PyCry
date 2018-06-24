@@ -48,6 +48,7 @@ def encrypt(plaintext, key):
                 if round != 14:
                     print('not last round')
                     # Column Mixing (not performed on the last round)
+                    state_block = _column_mixing(state_block)
                 
             # Key Block XOR
             state_block = bytearray(a ^ b for a, b in zip(state_block, round_key))
@@ -58,7 +59,7 @@ def encrypt(plaintext, key):
         state_blocks[i] = state_block
         i = i + 1
     
-    print("Round", round, "key", binascii.hexlify(round_key))
+    return bytearray([byte for block in state_blocks for byte in block])
 
 def decrypt(ciphertext, key):
     print("Decrypting:", ciphertext)
@@ -165,7 +166,7 @@ def _round_key(full_key, round):
     return full_key[start_index:end_index]
 
 def _row_transposition(block):
-    print("Pre trans", binascii.hexlify(block))
+    # print("Pre trans", binascii.hexlify(block))
     rows = [bytearray(), bytearray(), bytearray(), bytearray()]
     for i in range(len(block)):
         row_index = i % 4
@@ -173,7 +174,7 @@ def _row_transposition(block):
     
     for row_index in range(len(rows)):
         row = rows[row_index]
-        for rotations in range(row_index):
+        for _ in range(row_index):
             row.append(row.pop(0))
 
     output = bytearray([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])
@@ -188,8 +189,38 @@ def _row_transposition(block):
             byte_index = byte_index + 1
         row_index = row_index + 1
 
-    print("Post trans", binascii.hexlify(output))
+    # print("Post trans", binascii.hexlify(output))
     return output
+
+def _column_mixing(block):
+    columns = []
+    while len(block) > 0:
+        columns.append(block[0:4])
+        
+        for _ in range(4):
+            block.pop(0)
+     
+    return bytearray([byte for column in map(_mix_single_column, columns) for byte in column])
+
+def _mix_single_column(column):
+    output = column
+    b = bytearray([0,0,0,0])
+    high = None
+
+    print("column is ", binascii.hexlify(column))
+    for i in range(4):
+        b[i] = output[i] & 0x80
+        high = output[i] << 1
+        if high == 0x80:
+            b[i] = b[i] ^ 0x1b
+    
+    output[0] = b[0] ^ column[3] ^ column[2] ^ b[2] ^ column[1]
+    output[1] = b[1] ^ column[0] ^ column[3] ^ b[2] ^ column[2]
+    output[2] = b[2] ^ column[1] ^ column[0] ^ b[3] ^ column[3]
+    output[3] = b[3] ^ column[2] ^ column[1] ^ b[0] ^ column[0]
+
+    return output
+
 
     # 1st row: 0 bytes to the left
     # 2nd row: 1 byte to the left

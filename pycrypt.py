@@ -1,3 +1,4 @@
+import binascii
 import click
 import secrets
 from simple_aes import encrypt, decrypt
@@ -14,7 +15,9 @@ def main(path_or_message, key):
     else:
         key = key.encode('utf-8').hex()
 
-    encrypt(path_or_message, key)
+    ciphertext = encrypt(path_or_message, key)
+    print(binascii.hexlify(ciphertext))
+    print(binascii.b2a_base64(ciphertext))
 
 if __name__ == '__main__':
     main()
