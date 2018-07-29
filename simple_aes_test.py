@@ -17,7 +17,7 @@ class TestSimpleAES(unittest.TestCase):
         ]
 
         for (key, plaintext, ciphertext) in test_vectors:
-            self.assertEqual(decrypt(ciphertext, key), plaintext)
+            self.assertEqual(decrypt(ciphertext, key), bytearray(plaintext, encoding="utf-8"))
 
     def test_encrypt(self):
         # Test vectors generated from my own Ruby script that performs encryption using OpenSSL (AES 256 - ECB mode)

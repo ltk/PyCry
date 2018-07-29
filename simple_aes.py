@@ -12,8 +12,7 @@ def string_to_bytearray(string):
 def decrypt(ciphertext, key):
     print("Decrypting:", ciphertext)
     block_length = 16
-
-    ciphertext_bytes = string_to_bytearray(ciphertext)
+    ciphertext_bytes = bytearray.fromhex(ciphertext)
     key_bytes = string_to_bytearray(key)
     expanded_key = expand_key(key_bytes)
 
@@ -25,6 +24,14 @@ def decrypt(ciphertext, key):
                 block.append(ciphertext_bytes.pop(0))
         state_blocks.append(block)
 
+    # print("NEED TO BE STATE BLOCKS", [bytearray(b'\x0f\xa4\xff\x1fP$Mw\x83\x917\xc1\x19\xba\x1f2'), bytearray(b'\xe2)\n\xe4\xa4\x8b\x96\xdc\xbc\x17y\xe7\xfd\xa0Nj')])
+    # print("DEC STATE BLOCKS", state_blocks)
+    # DEC STATE BLOCKS: [bytearray(b'0fa4ff1f50244d77'), bytearray(b'839137c119ba1f32'), bytearray(b'e2290ae4a48b96dc'), bytearray(b'bc1779e7fda04e6a')]
+    # ENC STATE BLOCKS: [bytearray(b'\x0f\xa4\xff\x1fP$Mw\x83\x917\xc1\x19\xba\x1f2'), bytearray(b'\xe2)\n\xe4\xa4\x8b\x96\xdc\xbc\x17y\xe7\xfd\xa0Nj')]
+
+    # Get to this
+    # state_blocks = [bytearray(b'\x0f\xa4\xff\x1fP$Mw\x83\x917\xc1\x19\xba\x1f2'), bytearray(b'\xe2)\n\xe4\xa4\x8b\x96\xdc\xbc\x17y\xe7\xfd\xa0Nj')]
+
     i = 0
     while i < len(state_blocks):
         state_block = state_blocks[i]
@@ -32,29 +39,41 @@ def decrypt(ciphertext, key):
         # Do all the things.
 
         for round in range(14, -1, -1):
+            # print("DEC ROUND", round)
             round_key = _round_key(expanded_key, round)
+            # print("DEC ROUND KEY", round_key)
 
+             # Key Block XOR
+            state_block = bytearray(a ^ b for a, b in zip(state_block, round_key))
+
+            # In the last round, we only xor
             if round > 0:
-                # Byte Substitution
-                state_block = bytearray(map(inverse_s_box, state_block))
-
-                # Row Transposition
-                state_block = inverse_row_transposition(state_block)
-
                 if round != 14:
                     # print('not last round')
                     # Column Mixing (not performed on the last round)
                     state_block = inverse_mix_columns(state_block)
-                
-            # Key Block XOR
-            state_block = bytearray(a ^ b for a, b in zip(state_block, round_key))
-            
+
+                # Row Transposition
+                state_block = inverse_row_transposition(state_block)
+
+                # Byte Substitution
+                state_block = bytearray(map(inverse_s_box, state_block))
 
         # Finish doing all the things.
 
         state_blocks[i] = state_block
         i = i + 1
     
+    # Remove padding
+    last_block = state_blocks[-1]
+    last_byte = last_block[-1]
+    if int(last_byte < 16):
+        # print("last byte is", int(last_byte))
+        for _ in range(int(last_byte)):
+            last_block.pop()
+    # print("last block len", len(last_block))
+    # print("last block", state_blocks[-1])
+
     return bytearray([byte for block in state_blocks for byte in block])
 
 #     out = m.xor_round_key(keys,10)
@@ -98,9 +117,9 @@ def encrypt(plaintext, key):
 
 
 
-    print("PRE PADDING bytes are", binascii.hexlify(plaintext_bytes))
+    # print("PRE PADDING bytes are", binascii.hexlify(plaintext_bytes))
     padding_needed = (block_length - (len(plaintext_bytes) % block_length)) % block_length
-    print("padding needed", padding_needed)
+    # print("padding needed", padding_needed)
     # Block padding, learnt from https://asecuritysite.com/encryption/padding
     for _ in range(padding_needed):
         # zero padding
@@ -108,7 +127,7 @@ def encrypt(plaintext, key):
 
         # Cryptographic message syntax padding
         plaintext_bytes.append(padding_needed)
-    print("POST PADDING bytes are", binascii.hexlify(plaintext_bytes))
+    # print("POST PADDING bytes are", binascii.hexlify(plaintext_bytes))
 
     state_blocks = []
     while len(plaintext_bytes) > 0:
@@ -125,8 +144,11 @@ def encrypt(plaintext, key):
         # Do all the things.
 
         for round in range(0, 15):
+            # print("ENC ROUND", round)
             round_key = _round_key(expanded_key, round)
+            # print("DEC ROUND KEY", round_key)
 
+            # In the first round, we only xor
             if round > 0:
                 # Byte Substitution
                 state_block = bytearray(map(s_box, state_block))
@@ -147,6 +169,8 @@ def encrypt(plaintext, key):
 
         state_blocks[i] = state_block
         i = i + 1
+
+    print("ENC STATE BLOCKS", state_blocks)
     
     return bytearray([byte for block in state_blocks for byte in block])
 
