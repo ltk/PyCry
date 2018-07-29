@@ -1,3 +1,4 @@
+import base64
 import binascii
 import click
 import secrets
@@ -16,8 +17,10 @@ def main(path_or_message, key):
         key = key.encode('utf-8').hex()
 
     ciphertext = encrypt(path_or_message, key)
-    print(binascii.hexlify(ciphertext))
-    print(binascii.b2a_base64(ciphertext))
+    print(base64.encodebytes(ciphertext))
+    # print(str(ciphertext, encoding="base64"))
+    # print(binascii.hexlify(ciphertext))
+    # print(binascii.b2a_base64(ciphertext))
 
 if __name__ == '__main__':
     main()
