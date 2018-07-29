@@ -1,11 +1,24 @@
 import unittest
+import base64
 import binascii
 
-from simple_aes import expand_key, key_schedule_core, mix_column, string_to_bytearray
+from simple_aes import encrypt, expand_key, key_schedule_core, mix_single_column, string_to_bytearray
 
 class TestSimpleAES(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
+
+    def test_encrypt(self):
+        # Test vectors generated from my own Ruby script that performs encryption using OpenSSL (AES 256 - ECB mode)
+        test_vectors = [
+            ("12345612345612345612345612345612", "12345612345612345612345612345612", "0fa4ff1f50244d77839137c119ba1f32e2290ae4a48b96dcbc1779e7fda04e6a"),
+            ("12345612345612345612345612345612", "hey", "9df223bfa80f546cb0090aedbbc24e6f"),
+            ("00000000000000000000000000000000", "0", "b841ebc7e9ae4fc33950506f45a609c0"),
+        ]
+
+        for (key, plaintext, encrypted) in test_vectors:
+            print("b64 encrypted", base64.encodebytes(encrypt(plaintext, key)))
+            self.assertEqual(encrypt(plaintext, key), bytearray.fromhex(encrypted))
 
     def test_string_to_bytearray(self):
         provided_string = "This is some text."
@@ -39,9 +52,9 @@ class TestSimpleAES(unittest.TestCase):
         for (key, expansion) in test_vectors:
             self.assertEqual(expand_key(bytearray.fromhex(key)), bytearray.fromhex(expansion))
 
-    def test_mix_column(self):
-        self.assertRaises(ValueError, mix_column, b"000")
-        self.assertRaises(ValueError, mix_column, b"00000")
+    def test_mix_single_column(self):
+        self.assertRaises(ValueError, mix_single_column, b"000")
+        self.assertRaises(ValueError, mix_single_column, b"00000")
 
         # Test vectors from http://www.samiam.org/mix-column.html
         test_vectors = [
@@ -53,7 +66,7 @@ class TestSimpleAES(unittest.TestCase):
         ]
 
         for (word, mixed) in test_vectors:
-            self.assertEqual(mix_column(bytearray.fromhex(word)), bytearray.fromhex(mixed))
+            self.assertEqual(mix_single_column(bytearray.fromhex(word)), bytearray.fromhex(mixed))
 
 if __name__ == '__main__':
     unittest.main()

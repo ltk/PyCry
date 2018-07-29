@@ -13,10 +13,11 @@ def main(path_or_message, key):
 
     if key == "random":
         key = secrets.token_hex(32)
-    else:
-        key = key.encode('utf-8').hex()
+    # else:
+    #     key = key.encode('utf-8').hex()
 
     ciphertext = encrypt(path_or_message, key)
+    # print(ciphertext)
     print(base64.encodebytes(ciphertext))
     # print(str(ciphertext, encoding="base64"))
     # print(binascii.hexlify(ciphertext))

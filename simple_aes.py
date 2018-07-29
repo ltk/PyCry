@@ -29,9 +29,24 @@ def encrypt(plaintext, key):
     # key_bytes = base64.b64encode(key)
 
     expanded_key = expand_key(key_bytes)
-    print("Expanded key length:", len(expanded_key))
-    print("Expanded key:", binascii.hexlify(expanded_key))
+    # print("Expanded key length:", len(expanded_key))
+    # print("Expanded key:", binascii.hexlify(expanded_key))
     block_length = 16
+
+
+
+    print("PRE PADDING bytes are", binascii.hexlify(plaintext_bytes))
+    padding_needed = (block_length - (len(plaintext_bytes) % block_length)) % block_length
+    print("padding needed", padding_needed)
+    # Block padding, learnt from https://asecuritysite.com/encryption/padding
+    for _ in range(padding_needed):
+        # zero padding
+        # plaintext_bytes.append(0)
+
+        # Cryptographic message syntax padding
+        plaintext_bytes.append(padding_needed)
+    print("POST PADDING bytes are", binascii.hexlify(plaintext_bytes))
+
     state_blocks = []
     while len(plaintext_bytes) > 0:
         block = bytearray()
@@ -39,14 +54,6 @@ def encrypt(plaintext, key):
             if len(plaintext_bytes) > 0:
                 block.append(plaintext_bytes.pop(0))
         state_blocks.append(block)
-    
-    # Cryptographic Message Syntax padding
-    if len(state_blocks[-1]) < block_length:
-        num_padding_bytes = block_length - len(state_blocks[-1])
-        for n in range(num_padding_bytes):
-            state_blocks[-1].append(num_padding_bytes)
-
-    # print(state_blocks)
 
     i = 0
     while i < len(state_blocks):
@@ -68,7 +75,7 @@ def encrypt(plaintext, key):
                 if round != 14:
                     # print('not last round')
                     # Column Mixing (not performed on the last round)
-                    state_block = mix_column(state_block)
+                    state_block = mix_columns(state_block)
                 
             # Key Block XOR
             state_block = bytearray(a ^ b for a, b in zip(state_block, round_key))
@@ -133,43 +140,6 @@ def expand_key(key_bytes):
 
 
     return key_bytes[0:required_expansion_bytes]
-
-# def original_expand_key(initial_key):
-#     # Depracated
-#     required_key_bytes = 32
-#     required_expansion_bytes = 240
-
-#     key_bytes = bytearray.fromhex(initial_key)
-#     print("Initial key:", binascii.hexlify(key_bytes))
-#     print("Initial key length:", len(key_bytes))
-#     if len(key_bytes) < required_key_bytes:
-#         # TODO: make this a custom exception, and rescue with friendly error message.
-#         raise ValueError("Need a longer key! Provided key was " + str(len(key_bytes)) + " bytes. " + str(required_key_bytes) + " bytes required.")
-
-#     key_bytes = key_bytes[0:required_key_bytes]
-
-#     i = 1
-#     while len(key_bytes) < required_expansion_bytes:
-#         # Generate 32 more bytes
-#         last_4 = key_bytes[-4:] 
-#         new_bytes = last_4
-#         new_bytes = key_schedule_core(new_bytes, i)
-#         i = i + 1
-#         new_bytes = _four_byte_xor(key_bytes, new_bytes, required_key_bytes)
-#         key_bytes = key_bytes + new_bytes
-
-#         # Create 4 bytes 3 times for 12 more bytes
-#         for n in range(3):
-#             last_4 = key_bytes[-4:]
-#             new_bytes = last_4
-#             key_bytes = key_bytes + _four_byte_xor(key_bytes, new_bytes, required_key_bytes)
-
-#         # then add 4 more bytes
-#         last_4 = key_bytes[-4:]
-#         new_bytes = bytearray(map(_s_box, last_4))
-#         key_bytes = key_bytes + _four_byte_xor(key_bytes, new_bytes, required_key_bytes)
-
-#     return key_bytes[0:required_expansion_bytes]
 
 def key_schedule_core(word, i):
     if (len(word) != 4):
@@ -265,34 +235,37 @@ def _row_transposition(block):
     # print("Post trans", binascii.hexlify(output))
     return output
 
-def mix_column(word):
-    if (len(word) != 4):
-        raise ValueError("Words provided to `mix_column` must be 4 bytes. Provided word was " + str(len(word)) + " bytes.")
-
+def mix_columns(block):
     columns = []
-    while len(word) > 0:
-        columns.append(word[0:4])
+    while len(block) > 0:
+        columns.append(block[0:4])
         
         for _ in range(4):
-            word.pop(0)
+            block.pop(0)
      
-    return bytearray([byte for column in map(_mix_single_column, columns) for byte in column])
+    return bytearray([byte for column in map(mix_single_column, columns) for byte in column])
 
-def _mix_single_column(column):
-    output = column
-    b = bytearray([0,0,0,0])
-    high = None
+def mix_single_column(column):
+    # Learnt from http://www.samiam.org/mix-column.html
+    if (len(column) != 4):
+        raise ValueError("Column provided to `mix_single_column` must be 4 bytes. Provided column was " + str(len(column)) + " bytes.")
 
-    # print("column is ", binascii.hexlify(column))
-    for i in range(4):
-        b[i] = output[i] & 0x80
-        high = output[i] << 1
-        if high == 0x80:
-            b[i] = b[i] ^ 0x1b
+    column = [int(byte) for byte in column]
+    output = [None, None, None, None]
+    a = [None, None, None, None]
+    b = [None, None, None, None]
+    h = None
+
+    for c in range(4):
+        a[c] = column[c]
+        h = column[c] & 0x80
+        b[c] = column[c] << 1
+        if h == 0x80:
+            b[c] ^= 0x1b
     
-    output[0] = b[0] ^ column[3] ^ column[2] ^ b[2] ^ column[1]
-    output[1] = b[1] ^ column[0] ^ column[3] ^ b[2] ^ column[2]
-    output[2] = b[2] ^ column[1] ^ column[0] ^ b[3] ^ column[3]
-    output[3] = b[3] ^ column[2] ^ column[1] ^ b[0] ^ column[0]
+    output[0] = b[0] ^ a[3] ^ a[2] ^ b[1] ^ a[1]
+    output[1] = b[1] ^ a[0] ^ a[3] ^ b[2] ^ a[2]
+    output[2] = b[2] ^ a[1] ^ a[0] ^ b[3] ^ a[3]
+    output[3] = b[3] ^ a[2] ^ a[1] ^ b[0] ^ a[0]
 
-    return output
+    return [(value % 256) for value in output]
