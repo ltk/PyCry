@@ -2,11 +2,22 @@ import unittest
 import base64
 import binascii
 
-from simple_aes import encrypt, expand_key, key_schedule_core, mix_single_column, string_to_bytearray
+from simple_aes import decrypt, encrypt, expand_key, inverse_mix_single_column, inverse_row_transposition, inverse_s_box, key_schedule_core, mix_single_column, row_transposition, s_box, string_to_bytearray
 
 class TestSimpleAES(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
+
+    def test_decrypt(self):
+        # Test vectors generated from my own Ruby script that performs encryption using OpenSSL (AES 256 - ECB mode)
+        test_vectors = [
+            ("12345612345612345612345612345612", "12345612345612345612345612345612", "0fa4ff1f50244d77839137c119ba1f32e2290ae4a48b96dcbc1779e7fda04e6a"),
+            ("12345612345612345612345612345612", "hey", "9df223bfa80f546cb0090aedbbc24e6f"),
+            ("00000000000000000000000000000000", "0", "b841ebc7e9ae4fc33950506f45a609c0"),
+        ]
+
+        for (key, plaintext, ciphertext) in test_vectors:
+            self.assertEqual(decrypt(ciphertext, key), plaintext)
 
     def test_encrypt(self):
         # Test vectors generated from my own Ruby script that performs encryption using OpenSSL (AES 256 - ECB mode)
@@ -16,9 +27,16 @@ class TestSimpleAES(unittest.TestCase):
             ("00000000000000000000000000000000", "0", "b841ebc7e9ae4fc33950506f45a609c0"),
         ]
 
-        for (key, plaintext, encrypted) in test_vectors:
-            print("b64 encrypted", base64.encodebytes(encrypt(plaintext, key)))
-            self.assertEqual(encrypt(plaintext, key), bytearray.fromhex(encrypted))
+        for (key, plaintext, ciphertext) in test_vectors:
+            self.assertEqual(encrypt(plaintext, key), bytearray.fromhex(ciphertext))
+
+    def test_sbox_inversability(self):
+        b = 0xc1
+        self.assertEqual(inverse_s_box(s_box(b)), b)
+
+    def test_row_transposition_inversability(self):
+        b = bytearray([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16])
+        self.assertEqual(inverse_row_transposition(row_transposition(b)), b)
 
     def test_string_to_bytearray(self):
         provided_string = "This is some text."
@@ -52,6 +70,23 @@ class TestSimpleAES(unittest.TestCase):
         for (key, expansion) in test_vectors:
             self.assertEqual(expand_key(bytearray.fromhex(key)), bytearray.fromhex(expansion))
 
+    def test_inverse_mix_single_column(self):
+        self.assertRaises(ValueError, inverse_mix_single_column, b"000")
+        self.assertRaises(ValueError, inverse_mix_single_column, b"00000")
+
+        # Test vectors from http://www.samiam.org/mix-column.html
+        test_vectors = [
+            ("db 13 53 45", "8e 4d a1 bc"),
+            ("f2 0a 22 5c", "9f dc 58 9d"),
+            ("01 01 01 01", "01 01 01 01"),
+            ("d4 d4 d4 d5", "d5 d5 d7 d6"),
+            ("2d 26 31 4c", "4d 7e bd f8")
+        ]
+
+        for (word, mixed) in test_vectors:
+            word_ints = [int(byte) for byte in bytearray.fromhex(word)]
+            self.assertEqual(inverse_mix_single_column(bytearray.fromhex(mixed)), word_ints)
+
     def test_mix_single_column(self):
         self.assertRaises(ValueError, mix_single_column, b"000")
         self.assertRaises(ValueError, mix_single_column, b"00000")
@@ -65,8 +100,10 @@ class TestSimpleAES(unittest.TestCase):
             ("2d 26 31 4c", "4d 7e bd f8")
         ]
 
+
         for (word, mixed) in test_vectors:
-            self.assertEqual(mix_single_column(bytearray.fromhex(word)), bytearray.fromhex(mixed))
+            mixed_ints = [int(byte) for byte in bytearray.fromhex(mixed)]
+            self.assertEqual(mix_single_column(bytearray.fromhex(word)), mixed_ints)
 
 if __name__ == '__main__':
     unittest.main()

@@ -9,7 +9,71 @@ import secrets
 def string_to_bytearray(string):
     return bytearray(ord(character) for character in string)
 
+def decrypt(ciphertext, key):
+    print("Decrypting:", ciphertext)
+    block_length = 16
+
+    ciphertext_bytes = string_to_bytearray(ciphertext)
+    key_bytes = string_to_bytearray(key)
+    expanded_key = expand_key(key_bytes)
+
+    state_blocks = []
+    while len(ciphertext_bytes) > 0:
+        block = bytearray()
+        for n in range(block_length):
+            if len(ciphertext_bytes) > 0:
+                block.append(ciphertext_bytes.pop(0))
+        state_blocks.append(block)
+
+    i = 0
+    while i < len(state_blocks):
+        state_block = state_blocks[i]
+
+        # Do all the things.
+
+        for round in range(14, -1, -1):
+            round_key = _round_key(expanded_key, round)
+
+            if round > 0:
+                # Byte Substitution
+                state_block = bytearray(map(inverse_s_box, state_block))
+
+                # Row Transposition
+                state_block = inverse_row_transposition(state_block)
+
+                if round != 14:
+                    # print('not last round')
+                    # Column Mixing (not performed on the last round)
+                    state_block = inverse_mix_columns(state_block)
+                
+            # Key Block XOR
+            state_block = bytearray(a ^ b for a, b in zip(state_block, round_key))
+            
+
+        # Finish doing all the things.
+
+        state_blocks[i] = state_block
+        i = i + 1
+    
+    return bytearray([byte for block in state_blocks for byte in block])
+
+#     out = m.xor_round_key(keys,10)
+#   out = out.shift_rows_inv
+#   out = out.sub_bytes_inv
+#   9.times {|i|
+#     out = out.xor_round_key(keys,9-i)
+#     out = out.mix_cols_inv
+#     out = out.shift_rows_inv
+#     out = out.sub_bytes_inv
+#   }
+#   out = out.xor_round_key(keys,0)
+
+
+
+
 def encrypt(plaintext, key):
+    block_length = 16
+
     print("Encrypting:", plaintext)
     # plaintext_bytes = bytearray(plaintext, encoding="utf-8")
 
@@ -31,7 +95,6 @@ def encrypt(plaintext, key):
     expanded_key = expand_key(key_bytes)
     # print("Expanded key length:", len(expanded_key))
     # print("Expanded key:", binascii.hexlify(expanded_key))
-    block_length = 16
 
 
 
@@ -61,16 +124,15 @@ def encrypt(plaintext, key):
 
         # Do all the things.
 
-        # Rounds 2 - 15
         for round in range(0, 15):
             round_key = _round_key(expanded_key, round)
 
             if round > 0:
                 # Byte Substitution
-                state_block = bytearray(map(_s_box, state_block))
+                state_block = bytearray(map(s_box, state_block))
 
                 # Row Transposition
-                state_block = _row_transposition(state_block)
+                state_block = row_transposition(state_block)
 
                 if round != 14:
                     # print('not last round')
@@ -87,11 +149,6 @@ def encrypt(plaintext, key):
         i = i + 1
     
     return bytearray([byte for block in state_blocks for byte in block])
-
-def decrypt(ciphertext, key):
-    print("Decrypting:", ciphertext)
-    print("Using key:", key)
-
 
 def expand_key(key_bytes):
     required_key_bytes = 32
@@ -128,7 +185,7 @@ def expand_key(key_bytes):
 
         # then add 4 more bytes
         last_4 = key_bytes[-4:]
-        new_bytes = bytearray(map(_s_box, last_4))
+        new_bytes = bytearray(map(s_box, last_4))
         key_bytes = key_bytes + _four_byte_xor(key_bytes, new_bytes, required_key_bytes)
 
         # then create 4 bytes 3 times for 12 more bytes 
@@ -149,14 +206,36 @@ def key_schedule_core(word, i):
     word.append(word.pop(0))
 
     # Perform s-box substitution for each byte
-    word = bytearray(map(_s_box, word))
+    word = bytearray(map(s_box, word))
 
     # xor the first byte with the rcon value for the current iteration
     word[0] = _rcon(i) ^ word[0]
 
     return word
 
-def _s_box(byte):
+def inverse_s_box(byte):
+    # Learnt from http://www.samiam.org/s-box.html
+    inverse_sbox = [0x52,0x09,0x6a,0xd5,0x30,0x36,0xa5,0x38,0xbf,0x40,0xa3,0x9e,0x81,0xf3,0xd7,0xfb,
+    0x7c,0xe3,0x39,0x82,0x9b,0x2f,0xff,0x87,0x34,0x8e,0x43,0x44,0xc4,0xde,0xe9,0xcb,
+    0x54,0x7b,0x94,0x32,0xa6,0xc2,0x23,0x3d,0xee,0x4c,0x95,0x0b,0x42,0xfa,0xc3,0x4e,
+    0x08,0x2e,0xa1,0x66,0x28,0xd9,0x24,0xb2,0x76,0x5b,0xa2,0x49,0x6d,0x8b,0xd1,0x25,
+    0x72,0xf8,0xf6,0x64,0x86,0x68,0x98,0x16,0xd4,0xa4,0x5c,0xcc,0x5d,0x65,0xb6,0x92,
+    0x6c,0x70,0x48,0x50,0xfd,0xed,0xb9,0xda,0x5e,0x15,0x46,0x57,0xa7,0x8d,0x9d,0x84,
+    0x90,0xd8,0xab,0x00,0x8c,0xbc,0xd3,0x0a,0xf7,0xe4,0x58,0x05,0xb8,0xb3,0x45,0x06,
+    0xd0,0x2c,0x1e,0x8f,0xca,0x3f,0x0f,0x02,0xc1,0xaf,0xbd,0x03,0x01,0x13,0x8a,0x6b,
+    0x3a,0x91,0x11,0x41,0x4f,0x67,0xdc,0xea,0x97,0xf2,0xcf,0xce,0xf0,0xb4,0xe6,0x73,
+    0x96,0xac,0x74,0x22,0xe7,0xad,0x35,0x85,0xe2,0xf9,0x37,0xe8,0x1c,0x75,0xdf,0x6e,
+    0x47,0xf1,0x1a,0x71,0x1d,0x29,0xc5,0x89,0x6f,0xb7,0x62,0x0e,0xaa,0x18,0xbe,0x1b,
+    0xfc,0x56,0x3e,0x4b,0xc6,0xd2,0x79,0x20,0x9a,0xdb,0xc0,0xfe,0x78,0xcd,0x5a,0xf4,
+    0x1f,0xdd,0xa8,0x33,0x88,0x07,0xc7,0x31,0xb1,0x12,0x10,0x59,0x27,0x80,0xec,0x5f,
+    0x60,0x51,0x7f,0xa9,0x19,0xb5,0x4a,0x0d,0x2d,0xe5,0x7a,0x9f,0x93,0xc9,0x9c,0xef,
+    0xa0,0xe0,0x3b,0x4d,0xae,0x2a,0xf5,0xb0,0xc8,0xeb,0xbb,0x3c,0x83,0x53,0x99,0x61,
+    0x17,0x2b,0x04,0x7e,0xba,0x77,0xd6,0x26,0xe1,0x69,0x14,0x63,0x55,0x21,0x0c,0x7d]
+
+    return inverse_sbox[byte]
+
+def s_box(byte):
+    # Learnt from http://www.samiam.org/s-box.html
     sbox = [0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
     0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4, 0x72, 0xC0,
     0xB7, 0xFD, 0x93, 0x26, 0x36, 0x3F, 0xF7, 0xCC, 0x34, 0xA5, 0xE5, 0xF1, 0x71, 0xD8, 0x31, 0x15,
@@ -208,7 +287,36 @@ def _round_key(full_key, round):
     end_index = start_index + round_key_length
     return full_key[start_index:end_index]
 
-def _row_transposition(block):
+def inverse_row_transposition(block):
+    # Learnt from https://en.wikipedia.org/wiki/Advanced_Encryption_Standard#/media/File:AES-ShiftRows.svg
+    # print("Pre trans", binascii.hexlify(block))
+    rows = [bytearray(), bytearray(), bytearray(), bytearray()]
+    for i in range(len(block)):
+        row_index = i % 4
+        rows[row_index].append(block[i])
+    
+    for row_index in range(len(rows)):
+        row = rows[row_index]
+        for _ in range(row_index):
+            row.insert(0, row.pop())
+
+    output = bytearray([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])
+    
+    row_index = 0
+    while row_index < len(rows):
+        row = rows[row_index]
+        byte_index = 0
+        while byte_index < len(row):  
+            byte = row[byte_index]          
+            output[4 * byte_index + row_index] = byte
+            byte_index = byte_index + 1
+        row_index = row_index + 1
+
+    # print("Post trans", binascii.hexlify(output))
+    return output
+
+def row_transposition(block):
+    # Learnt from https://en.wikipedia.org/wiki/Advanced_Encryption_Standard#/media/File:AES-ShiftRows.svg
     # print("Pre trans", binascii.hexlify(block))
     rows = [bytearray(), bytearray(), bytearray(), bytearray()]
     for i in range(len(block)):
@@ -245,6 +353,60 @@ def mix_columns(block):
      
     return bytearray([byte for column in map(mix_single_column, columns) for byte in column])
 
+def inverse_mix_columns(block):
+    columns = []
+    while len(block) > 0:
+        columns.append(block[0:4])
+        
+        for _ in range(4):
+            block.pop(0)
+     
+    return bytearray([byte for column in map(inverse_mix_single_column, columns) for byte in column])
+
+def inverse_mix_single_column(column):
+    if (len(column) != 4):
+        raise ValueError("Column provided to `inverse_mix_single_column` must be 4 bytes. Provided column was " + str(len(column)) + " bytes.")
+
+    column = [int(byte) for byte in column]
+    output = [None, None, None, None]
+    a = [None, None, None, None]
+
+    for c in range(4):
+        a[c] = column[c]
+    
+    output[0] = gmul(a[0],14) ^ gmul(a[3],9) ^ gmul(a[2],13) ^ gmul(a[1],11)
+    output[1] = gmul(a[1],14) ^ gmul(a[0],9) ^ gmul(a[3],13) ^ gmul(a[2],11)
+    output[2] = gmul(a[2],14) ^ gmul(a[1],9) ^ gmul(a[0],13) ^ gmul(a[3],11)
+    output[3] = gmul(a[3],14) ^ gmul(a[2],9) ^ gmul(a[1],13) ^ gmul(a[0],11)
+
+    return [(value % 256) for value in output]
+
+# def old_mix_single_column(column):
+#     print("OLD")
+#     # Learnt from http://www.samiam.org/mix-column.html
+#     if (len(column) != 4):
+#         raise ValueError("Column provided to `mix_single_column` must be 4 bytes. Provided column was " + str(len(column)) + " bytes.")
+
+#     column = [int(byte) for byte in column]
+#     output = [None, None, None, None]
+#     a = [None, None, None, None]
+#     b = [None, None, None, None]
+#     h = None
+
+#     for c in range(4):
+#         a[c] = column[c]
+#         h = column[c] & 0x80
+#         b[c] = column[c] << 1
+#         if h == 0x80:
+#             b[c] ^= 0x1b
+    
+#     output[0] = b[0] ^ a[3] ^ a[2] ^ b[1] ^ a[1]
+#     output[1] = b[1] ^ a[0] ^ a[3] ^ b[2] ^ a[2]
+#     output[2] = b[2] ^ a[1] ^ a[0] ^ b[3] ^ a[3]
+#     output[3] = b[3] ^ a[2] ^ a[1] ^ b[0] ^ a[0]
+
+#     return [(value % 256) for value in output]
+
 def mix_single_column(column):
     # Learnt from http://www.samiam.org/mix-column.html
     if (len(column) != 4):
@@ -253,19 +415,27 @@ def mix_single_column(column):
     column = [int(byte) for byte in column]
     output = [None, None, None, None]
     a = [None, None, None, None]
-    b = [None, None, None, None]
-    h = None
 
     for c in range(4):
         a[c] = column[c]
-        h = column[c] & 0x80
-        b[c] = column[c] << 1
-        if h == 0x80:
-            b[c] ^= 0x1b
     
-    output[0] = b[0] ^ a[3] ^ a[2] ^ b[1] ^ a[1]
-    output[1] = b[1] ^ a[0] ^ a[3] ^ b[2] ^ a[2]
-    output[2] = b[2] ^ a[1] ^ a[0] ^ b[3] ^ a[3]
-    output[3] = b[3] ^ a[2] ^ a[1] ^ b[0] ^ a[0]
+    output[0] = gmul(a[0],2) ^ gmul(a[3],1) ^ gmul(a[2],1) ^ gmul(a[1],3)
+    output[1] = gmul(a[1],2) ^ gmul(a[0],1) ^ gmul(a[3],1) ^ gmul(a[2],3)
+    output[2] = gmul(a[2],2) ^ gmul(a[1],1) ^ gmul(a[0],1) ^ gmul(a[3],3)
+    output[3] = gmul(a[3],2) ^ gmul(a[2],1) ^ gmul(a[1],1) ^ gmul(a[0],3)
 
     return [(value % 256) for value in output]
+
+def gmul(a, b):
+    # Learnt from http://www.samiam.org/galois.html
+    p = 0
+    h = None
+    for c in range(8):
+        if b & 1:
+            p ^= a
+        h = a & 0x80
+        a <<= 1
+        if h == 0x80:
+            a ^= 0x1b
+        b >>= 1
+    return p
