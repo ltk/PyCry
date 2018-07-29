@@ -68,7 +68,7 @@ def encrypt(plaintext, key):
                 if round != 14:
                     # print('not last round')
                     # Column Mixing (not performed on the last round)
-                    state_block = _column_mixing(state_block)
+                    state_block = mix_column(state_block)
                 
             # Key Block XOR
             state_block = bytearray(a ^ b for a, b in zip(state_block, round_key))
@@ -87,9 +87,6 @@ def decrypt(ciphertext, key):
 
 
 def expand_key(key_bytes):
-    # Initial key is bytes
-    # Expanded key is bytes
-
     required_key_bytes = 32
     required_expansion_bytes = 240
 
@@ -110,7 +107,7 @@ def expand_key(key_bytes):
         # First add 4 more bytes
         last_4 = key_bytes[-4:] 
         new_bytes = last_4
-        new_bytes = _key_schedule_core(new_bytes, i)
+        new_bytes = key_schedule_core(new_bytes, i)
         i = i + 1
         new_bytes = _four_byte_xor(key_bytes, new_bytes, required_key_bytes)
         key_bytes = key_bytes + new_bytes
@@ -156,7 +153,7 @@ def expand_key(key_bytes):
 #         # Generate 32 more bytes
 #         last_4 = key_bytes[-4:] 
 #         new_bytes = last_4
-#         new_bytes = _key_schedule_core(new_bytes, i)
+#         new_bytes = key_schedule_core(new_bytes, i)
 #         i = i + 1
 #         new_bytes = _four_byte_xor(key_bytes, new_bytes, required_key_bytes)
 #         key_bytes = key_bytes + new_bytes
@@ -174,7 +171,10 @@ def expand_key(key_bytes):
 
 #     return key_bytes[0:required_expansion_bytes]
 
-def _key_schedule_core(word, i):
+def key_schedule_core(word, i):
+    if (len(word) != 4):
+        raise ValueError("Words provided to `key_schedule_core` must be 4 bytes. Provided word was " + str(len(word)) + " bytes.")
+
     # Rotate the output eight bits to the left
     word.append(word.pop(0))
 
@@ -265,13 +265,16 @@ def _row_transposition(block):
     # print("Post trans", binascii.hexlify(output))
     return output
 
-def _column_mixing(block):
+def mix_column(word):
+    if (len(word) != 4):
+        raise ValueError("Words provided to `mix_column` must be 4 bytes. Provided word was " + str(len(word)) + " bytes.")
+
     columns = []
-    while len(block) > 0:
-        columns.append(block[0:4])
+    while len(word) > 0:
+        columns.append(word[0:4])
         
         for _ in range(4):
-            block.pop(0)
+            word.pop(0)
      
     return bytearray([byte for column in map(_mix_single_column, columns) for byte in column])
 
