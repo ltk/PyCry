@@ -11,24 +11,26 @@ class TestSimpleAES(unittest.TestCase):
     def test_decrypt(self):
         # Test vectors generated from my own Ruby script that performs encryption using OpenSSL (AES 256 - ECB mode)
         test_vectors = [
-            ("12345612345612345612345612345612", "12345612345612345612345612345612", "0fa4ff1f50244d77839137c119ba1f32e2290ae4a48b96dcbc1779e7fda04e6a"),
-            ("12345612345612345612345612345612", "hey", "9df223bfa80f546cb0090aedbbc24e6f"),
-            ("00000000000000000000000000000000", "0", "b841ebc7e9ae4fc33950506f45a609c0"),
+            ("1234561234561234561234561234561212345612345612345612345612345612", "12345612345612345612345612345612", "22dee2138884d55896336b4934afb46dcafc29cb65a05e813049c5de5d471d95246bd46cf63bd5e847a3befc03db1ab5"),
+            ("1234561234561234561234561234561212345612345612345612345612345612", "hey", "3051fababce44080cd02d9d4f8999f96"),
+            ("0000000000000000000000000000000000000000000000000000000000000000", "0", "41fba101d9c03aab56553372b31300b3"),
         ]
 
         for (key, plaintext, ciphertext) in test_vectors:
-            self.assertEqual(decrypt(ciphertext, key), bytearray(plaintext, encoding="utf-8"))
+            self.assertEqual(decrypt(ciphertext, bytearray.fromhex(key)), bytearray(plaintext, encoding="utf-8"))
 
     def test_encrypt(self):
         # Test vectors generated from my own Ruby script that performs encryption using OpenSSL (AES 256 - ECB mode)
         test_vectors = [
-            ("12345612345612345612345612345612", "12345612345612345612345612345612", "0fa4ff1f50244d77839137c119ba1f32e2290ae4a48b96dcbc1779e7fda04e6a"),
-            ("12345612345612345612345612345612", "hey", "9df223bfa80f546cb0090aedbbc24e6f"),
-            ("00000000000000000000000000000000", "0", "b841ebc7e9ae4fc33950506f45a609c0"),
+            ("1234561234561234561234561234561212345612345612345612345612345612", "12345612345612345612345612345612", "22dee2138884d55896336b4934afb46dcafc29cb65a05e813049c5de5d471d95246bd46cf63bd5e847a3befc03db1ab5"),
+            ("1234561234561234561234561234561212345612345612345612345612345612", "hey", "3051fababce44080cd02d9d4f8999f96"),
+            ("0000000000000000000000000000000000000000000000000000000000000000", "0", "41fba101d9c03aab56553372b31300b3"),
         ]
 
         for (key, plaintext, ciphertext) in test_vectors:
-            self.assertEqual(encrypt(plaintext, key), bytearray.fromhex(ciphertext))
+            print("Expected:", bytearray.fromhex(ciphertext))
+            print("Received:", encrypt(bytearray(plaintext, encoding="utf-8"), bytearray.fromhex(key))),
+            self.assertEqual(encrypt(bytearray(plaintext, encoding="utf-8"), bytearray.fromhex(key)), bytearray.fromhex(ciphertext))
 
     def test_sbox_inversability(self):
         b = 0xc1

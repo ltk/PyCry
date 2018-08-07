@@ -9,11 +9,11 @@ import secrets
 def string_to_bytearray(string):
     return bytearray(ord(character) for character in string)
 
-def decrypt(ciphertext, key):
-    print("Decrypting:", ciphertext)
+def decrypt(ciphertext_bytes, key_bytes):
+    # print("Decrypting:", ciphertext)
     block_length = 16
-    ciphertext_bytes = bytearray.fromhex(ciphertext)
-    key_bytes = string_to_bytearray(key)
+    # ciphertext_bytes = bytearray.fromhex(ciphertext)
+    # key_bytes = string_to_bytearray(key)
     expanded_key = expand_key(key_bytes)
 
     state_blocks = []
@@ -67,7 +67,7 @@ def decrypt(ciphertext, key):
     # Remove padding
     last_block = state_blocks[-1]
     last_byte = last_block[-1]
-    if int(last_byte < 16):
+    if int(last_byte <= 16):
         # print("last byte is", int(last_byte))
         for _ in range(int(last_byte)):
             last_block.pop()
@@ -90,20 +90,23 @@ def decrypt(ciphertext, key):
 
 
 
-def encrypt(plaintext, key):
+def encrypt(plaintext, key_bytes):
     block_length = 16
 
-    print("Encrypting:", plaintext)
+    # print("Encrypting:", plaintext)
     # plaintext_bytes = bytearray(plaintext, encoding="utf-8")
 
     # OLD OLD
     # plaintext_bytes = bytearray.fromhex(plaintext.encode("utf-8").hex())
-    plaintext_bytes = string_to_bytearray(plaintext)
+    plaintext_bytes = plaintext
+    # if type(plaintext) is bytearray:
+    # else:
+    #     plaintext_bytes = string_to_bytearray(plaintext)
     # plaintext_bytes = bytearray(codecs.encode(plaintext.encode("ascii"), "hex"))
 
     # OLD
     # key_bytes = bytearray.fromhex(key.encode("utf-8").hex())
-    key_bytes = string_to_bytearray(key)
+    # key_bytes = string_to_bytearray(key)
     # key_bytes = bytearray(key, encoding="utf-8")
     # key_bytes = bytearray(codecs.encode(key.encode("ascii"), "hex"))
 
@@ -170,7 +173,7 @@ def encrypt(plaintext, key):
         state_blocks[i] = state_block
         i = i + 1
 
-    print("ENC STATE BLOCKS", state_blocks)
+    # print("ENC STATE BLOCKS", state_blocks)
     
     return bytearray([byte for block in state_blocks for byte in block])
 
@@ -179,8 +182,8 @@ def expand_key(key_bytes):
     required_expansion_bytes = 240
 
     # key_bytes = bytearray.fromhex(initial_key)
-    print("Initial key:", binascii.hexlify(key_bytes))
-    print("Initial key length:", len(key_bytes))
+    # print("Initial key:", binascii.hexlify(key_bytes))
+    # print("Initial key length:", len(key_bytes))
     if len(key_bytes) < required_key_bytes:
         # TODO: make this a custom exception, and rescue with friendly error message.
         raise ValueError("Need a longer key! Provided key was " + str(len(key_bytes)) + " bytes. " + str(required_key_bytes) + " bytes required.")
