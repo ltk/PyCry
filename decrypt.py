@@ -6,21 +6,23 @@ from zipfile import ZipFile
 from simple_aes import decrypt
 
 @click.command()
-@click.option('-p', '--path', type=click.Path(exists=False), default="", prompt="Enter path to file or directory to encrypt/decrypt. Leave blank to operate on a message.", hide_input=False, help="Full filepath to the file or directory to encrypt or decrypt")
-@click.option('-m', '--message', default="", prompt="Enter a plaintext message to encrypt, or a ciphertext to decrypt. Leave blank to operate on a file.", hide_input=False, help="Full filepath to the file or directory to encrypt or decrypt")
-@click.option('-k', '--key', default="random", prompt="Enter a key", hide_input=True, help="A key for encryption/decryption")
+@click.option('-p', '--path', type=click.Path(exists=False), default="", prompt="Enter path to .enc file decrypt. Leave blank to decrypt a string ciphertext.", hide_input=False, help="Full filepath to the file to decrypt")
+@click.option('-m', '--message', default="", prompt="Enter the ciphertext to decrypt. Leave blank to operate on a file.", hide_input=False, help="Full ciphertext decrypt")
+@click.option('-k', '--key', prompt="Enter a hex-encoded decryption key", hide_input=True, help="A key for encryption/decryption")
 
 def main(path, message, key):
-    # print("key is", key)
-    # path_or_message = ' '.join(path_or_message)
+    try:
+        key = bytearray.fromhex(key)
+    except ValueError:
+        raise Exception("Provided key must be hexadecimal encoded.")
 
-    if not key or key == "":
-       print("ERROR! Provide a key for decryption.") 
-
-    key = bytearray.fromhex(key)
+    if len(key) < 32:
+        raise Exception("Provided key must be 32 bytes. (" + str(len(key)) + " byte key provided)")
 
     if path:
-        print("File mode: Path is", path)
+        if path[-4:] != ".enc":
+            raise Exception("Provided path must be an encrypted archive (a file with a .enc extension).")
+
         decrypted_file_name = os.path.basename(path)[0:-4] # Remove the `.enc`
         zip_file_name = decrypted_file_name + ".zip"
         encrypted_file = open(path, "rb")
@@ -32,19 +34,16 @@ def main(path, message, key):
 
         with ZipFile(zip_file_name, "r") as zip:
             zip.extractall()
-        # Open and write zip file
-        # Unzip
-        # Remove zip file
+
         os.remove(zip_file_name)
         encrypted_file.close()
-        print("Decription complete.")
+        print("Decryption complete.")
     elif message:
-        print("Message mode: Message is", message)
-        plaintext = decrypt(message, key)
-        print("Decryption complete:")
-        print(plaintext)
+        plaintext = decrypt(bytearray.fromhex(message), key)
+        print("Decryption complete. Plaintext is:")
+        print(str(plaintext, encoding="utf-8"))
     else:
-        print("ERROR! Nothing provided.")
+        raise Exception("You must provide either a filepath or a ciphertext for decryption.")
 
 if __name__ == '__main__':
     main()

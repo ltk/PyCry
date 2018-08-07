@@ -9,27 +9,17 @@ from simple_aes import encrypt
 
 @click.command()
 @click.option('-p', '--path', type=click.Path(exists=False), default="", prompt="Enter path to file or directory to encrypt/decrypt. Leave blank to operate on a message", hide_input=False, help="Full filepath to the file or directory to encrypt")
-@click.option('-m', '--message', default="", prompt="Enter a plaintext message to encrypt. Leave blank to operate on a file", hide_input=False, help="Full filepath to the file or directory to encrypt")
-@click.option('-k', '--key', default="random", prompt="Enter a hex-encoded encryption key or press Enter to generate a random key", hide_input=True, help="A key for encryption (hex encoded)")
+@click.option('-m', '--message', default="", prompt="Enter a plaintext message to encrypt. Leave blank to operate on a file", hide_input=False, help="Full message to encrypt")
+@click.option('-k', '--key', default="random", prompt="Enter a 32-byte hex-encoded encryption key, or press Enter to generate a random key", hide_input=True, help="A key for encryption (hex encoded)")
 
 def main(path, message, key):
-    print("key is", key)
-    # path_or_message = ' '.join(path_or_message)
-
-    if path:
-        print("File mode: Path is", path)
-    elif message:
-        print("Message mode: Message is", message)
-    else:
-        print("ERROR! Nothing provided.")
-
-
-    
-
+    if path == "" and message == "":
+        raise Exception("You must provide either a filepath or a message for encryption.")
 
     if key == "random":
+        # User has selected to have a key generated, so generate one!
         key = secrets.token_hex(32)
-        input("Generated key is: " + key + ". Hit enter to hide key and continue with encryption.\r")
+        input("Generated key is: `" + key + "`. Hit enter to hide key and continue with encryption.\r")
         # Move cursor up one line.
         sys.stdout.write("\033[F")
         # Clear line to remove key.
@@ -72,8 +62,8 @@ def main(path, message, key):
         print("Encryption complete: Encrypted file written to", encrypted_file_name)
     elif message:
         ciphertext = encrypt(bytearray(message, encoding="utf-8"), key)
-        print("Encryption complete:")
-        print(binascii.hexlify(ciphertext))
+        print("Encryption complete. Ciphertext is:")
+        print(str(binascii.hexlify(ciphertext), encoding="utf-8"))
         
     # else:
     #     key = key.encode('utf-8').hex()
