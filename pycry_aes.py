@@ -6,9 +6,6 @@ import secrets
 # For debugging:
 # import code; code.interact(local=dict(globals(), **locals()))
 
-def string_to_bytearray(string):
-    return bytearray(ord(character) for character in string)
-
 def decrypt(ciphertext_bytes, key_bytes):
     # print("Decrypting:", ciphertext)
     block_length = 16

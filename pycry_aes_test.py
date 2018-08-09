@@ -1,8 +1,6 @@
 import unittest
-import base64
-import binascii
 
-from pycry_aes import decrypt, encrypt, expand_key, inverse_mix_single_column, inverse_row_transposition, inverse_s_box, key_schedule_core, mix_single_column, row_transposition, s_box, string_to_bytearray
+from pycry_aes import decrypt, encrypt, expand_key, inverse_mix_single_column, inverse_row_transposition, inverse_s_box, key_schedule_core, mix_single_column, row_transposition, s_box
 
 class TestSimpleAES(unittest.TestCase):
     def setUp(self):
@@ -11,26 +9,25 @@ class TestSimpleAES(unittest.TestCase):
     def test_decrypt(self):
         # Test vectors generated from my own Ruby script that performs encryption using OpenSSL (AES 256 - ECB mode)
         test_vectors = [
-            ("1234561234561234561234561234561212345612345612345612345612345612", "12345612345612345612345612345612", "22dee2138884d55896336b4934afb46dcafc29cb65a05e813049c5de5d471d95246bd46cf63bd5e847a3befc03db1ab5"),
             ("1234561234561234561234561234561212345612345612345612345612345612", "hey", "3051fababce44080cd02d9d4f8999f96"),
             ("0000000000000000000000000000000000000000000000000000000000000000", "0", "41fba101d9c03aab56553372b31300b3"),
         ]
 
         for (key, plaintext, ciphertext) in test_vectors:
-            self.assertEqual(decrypt(ciphertext, bytearray.fromhex(key)), bytearray(plaintext, encoding="utf-8"))
+            decrypted_string = str(decrypt(bytearray.fromhex(ciphertext), bytearray.fromhex(key)), encoding="utf-8")
+            self.assertEqual(decrypted_string, plaintext)
 
     def test_encrypt(self):
         # Test vectors generated from my own Ruby script that performs encryption using OpenSSL (AES 256 - ECB mode)
         test_vectors = [
-            ("1234561234561234561234561234561212345612345612345612345612345612", "12345612345612345612345612345612", "22dee2138884d55896336b4934afb46dcafc29cb65a05e813049c5de5d471d95246bd46cf63bd5e847a3befc03db1ab5"),
             ("1234561234561234561234561234561212345612345612345612345612345612", "hey", "3051fababce44080cd02d9d4f8999f96"),
             ("0000000000000000000000000000000000000000000000000000000000000000", "0", "41fba101d9c03aab56553372b31300b3"),
         ]
 
         for (key, plaintext, ciphertext) in test_vectors:
-            print("Expected:", bytearray.fromhex(ciphertext))
-            print("Received:", encrypt(bytearray(plaintext, encoding="utf-8"), bytearray.fromhex(key))),
-            self.assertEqual(encrypt(bytearray(plaintext, encoding="utf-8"), bytearray.fromhex(key)), bytearray.fromhex(ciphertext))
+            encrypted_bytes = encrypt(bytearray(plaintext, encoding="utf-8"), bytearray.fromhex(key))
+            known_ciphertext_bytes = bytearray.fromhex(ciphertext)
+            self.assertEqual(encrypted_bytes, known_ciphertext_bytes)
 
     def test_sbox_inversability(self):
         b = 0xc1
@@ -39,11 +36,6 @@ class TestSimpleAES(unittest.TestCase):
     def test_row_transposition_inversability(self):
         b = bytearray([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16])
         self.assertEqual(inverse_row_transposition(row_transposition(b)), b)
-
-    def test_string_to_bytearray(self):
-        provided_string = "This is some text."
-        expected_bytearray = bytearray(b"This is some text.")
-        self.assertEqual(string_to_bytearray(provided_string), expected_bytearray)
 
     def test_expand_key_length(self):
         key = bytearray.fromhex("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
