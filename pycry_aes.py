@@ -1,18 +1,12 @@
-import base64
-import binascii
-import codecs
-import secrets
-
-# For debugging:
-# import code; code.interact(local=dict(globals(), **locals()))
-
+# AES-256-ECB Decryption
 def decrypt(ciphertext_bytes, key_bytes):
-    # print("Decrypting:", ciphertext)
+    # Decryption process operates on one 16-byte block at a time
     block_length = 16
-    # ciphertext_bytes = bytearray.fromhex(ciphertext)
-    # key_bytes = string_to_bytearray(key)
+
+    # Expand the provided key to enough bytes for unique round keys for each round
     expanded_key = expand_key(key_bytes)
 
+    # Split the encrypted bytes into blocks of size block_length
     state_blocks = []
     while len(ciphertext_bytes) > 0:
         block = bytearray()
@@ -21,114 +15,65 @@ def decrypt(ciphertext_bytes, key_bytes):
                 block.append(ciphertext_bytes.pop(0))
         state_blocks.append(block)
 
-    # print("NEED TO BE STATE BLOCKS", [bytearray(b'\x0f\xa4\xff\x1fP$Mw\x83\x917\xc1\x19\xba\x1f2'), bytearray(b'\xe2)\n\xe4\xa4\x8b\x96\xdc\xbc\x17y\xe7\xfd\xa0Nj')])
-    # print("DEC STATE BLOCKS", state_blocks)
-    # DEC STATE BLOCKS: [bytearray(b'0fa4ff1f50244d77'), bytearray(b'839137c119ba1f32'), bytearray(b'e2290ae4a48b96dc'), bytearray(b'bc1779e7fda04e6a')]
-    # ENC STATE BLOCKS: [bytearray(b'\x0f\xa4\xff\x1fP$Mw\x83\x917\xc1\x19\xba\x1f2'), bytearray(b'\xe2)\n\xe4\xa4\x8b\x96\xdc\xbc\x17y\xe7\xfd\xa0Nj')]
-
-    # Get to this
-    # state_blocks = [bytearray(b'\x0f\xa4\xff\x1fP$Mw\x83\x917\xc1\x19\xba\x1f2'), bytearray(b'\xe2)\n\xe4\xa4\x8b\x96\xdc\xbc\x17y\xe7\xfd\xa0Nj')]
-
+    # Take one block at a time, and decrypt it!
     i = 0
     while i < len(state_blocks):
         state_block = state_blocks[i]
 
-        # Do all the things.
-
+        # Perform the inverse of each of the rounds we performed during encryption
+        # Perform the inverse of the encryption. AKA run the same rounds, but in reverse
+        # round order. And within each round, perform the steps in reverse order as well.
         for round in range(14, -1, -1):
-            # print("DEC ROUND", round)
+            # Get a unique key for this number round
             round_key = _round_key(expanded_key, round)
-            # print("DEC ROUND KEY", round_key)
 
-             # Key Block XOR
+             # Perform the key block XOR step
             state_block = bytearray(a ^ b for a, b in zip(state_block, round_key))
 
-            # In the last round, we only xor
+            # If this is the last round (remember that we're counting down in the for loop)
+            # skip everything other than the key block XOR that we just performed.
             if round > 0:
                 if round != 14:
-                    # print('not last round')
-                    # Column Mixing (not performed on the last round)
+                    # If we're not in the first round, perform the column mixing step
                     state_block = inverse_mix_columns(state_block)
 
-                # Row Transposition
+                # Perform the row transposition step
                 state_block = inverse_row_transposition(state_block)
 
-                # Byte Substitution
+                # Perform the byte substitution step
                 state_block = bytearray(map(inverse_s_box, state_block))
 
-        # Finish doing all the things.
-
+        # Save the decrypted bytes back to our array of blocks, then move on to the next block
         state_blocks[i] = state_block
         i = i + 1
     
-    # Remove padding
+    # Remove CMS padding - learnt from https://asecuritysite.com/encryption/padding
     last_block = state_blocks[-1]
     last_byte = last_block[-1]
     if int(last_byte <= 16):
-        # print("last byte is", int(last_byte))
         for _ in range(int(last_byte)):
             last_block.pop()
-    # print("last block len", len(last_block))
-    # print("last block", state_blocks[-1])
 
+    # Join all the bytes from our blocks, and return all the decrypted bytes
     return bytearray([byte for block in state_blocks for byte in block])
 
-#     out = m.xor_round_key(keys,10)
-#   out = out.shift_rows_inv
-#   out = out.sub_bytes_inv
-#   9.times {|i|
-#     out = out.xor_round_key(keys,9-i)
-#     out = out.mix_cols_inv
-#     out = out.shift_rows_inv
-#     out = out.sub_bytes_inv
-#   }
-#   out = out.xor_round_key(keys,0)
-
-
-
-
-def encrypt(plaintext, key_bytes):
+# AES-256-ECB Encryption
+def encrypt(plaintext_bytes, key_bytes):
+    # Encryption process operates on one 16-byte block at a time
     block_length = 16
 
-    # print("Encrypting:", plaintext)
-    # plaintext_bytes = bytearray(plaintext, encoding="utf-8")
-
-    # OLD OLD
-    # plaintext_bytes = bytearray.fromhex(plaintext.encode("utf-8").hex())
-    plaintext_bytes = plaintext
-    # if type(plaintext) is bytearray:
-    # else:
-    #     plaintext_bytes = string_to_bytearray(plaintext)
-    # plaintext_bytes = bytearray(codecs.encode(plaintext.encode("ascii"), "hex"))
-
-    # OLD
-    # key_bytes = bytearray.fromhex(key.encode("utf-8").hex())
-    # key_bytes = string_to_bytearray(key)
-    # key_bytes = bytearray(key, encoding="utf-8")
-    # key_bytes = bytearray(codecs.encode(key.encode("ascii"), "hex"))
-
-    # New
-    # key_bytes = base64.decodebytes(key)
-    # key_bytes = base64.b64encode(key)
-
+    # Expand the provided key to enough bytes for unique round keys for each round
     expanded_key = expand_key(key_bytes)
-    # print("Expanded key length:", len(expanded_key))
-    # print("Expanded key:", binascii.hexlify(expanded_key))
-
-
-
-    # print("PRE PADDING bytes are", binascii.hexlify(plaintext_bytes))
+   
+    # All of our blocks need to be _exactly_ block_length bytes long.
+    # If our last block would be missing bytes, add Cryptographic Message Syntax (CMS) padding.
+    # CMS padding means filling the remainder of the block with bytes representing the number
+    # of missing bytes. Learnt from https://asecuritysite.com/encryption/padding
     padding_needed = (block_length - (len(plaintext_bytes) % block_length)) % block_length
-    # print("padding needed", padding_needed)
-    # Block padding, learnt from https://asecuritysite.com/encryption/padding
     for _ in range(padding_needed):
-        # zero padding
-        # plaintext_bytes.append(0)
-
-        # Cryptographic message syntax padding
         plaintext_bytes.append(padding_needed)
-    # print("POST PADDING bytes are", binascii.hexlify(plaintext_bytes))
 
+    # Split the plaintext bytes into blocks of size block_length 
     state_blocks = []
     while len(plaintext_bytes) > 0:
         block = bytearray()
@@ -137,61 +82,53 @@ def encrypt(plaintext, key_bytes):
                 block.append(plaintext_bytes.pop(0))
         state_blocks.append(block)
 
+    # Take one block at a time, and encrypt it!
     i = 0
     while i < len(state_blocks):
         state_block = state_blocks[i]
 
-        # Do all the things.
-
+        # AES-256 consists of 14 rounds of encrypting goodness
         for round in range(0, 15):
-            # print("ENC ROUND", round)
+            # Get a unique key for this number round
             round_key = _round_key(expanded_key, round)
-            # print("DEC ROUND KEY", round_key)
 
-            # In the first round, we only xor
+            # For the first round, we only perform the key block XOR step.
             if round > 0:
-                # Byte Substitution
+                # Perform the byte substitution
                 state_block = bytearray(map(s_box, state_block))
 
-                # Row Transposition
+                # Perform the row transposition
                 state_block = row_transposition(state_block)
 
                 if round != 14:
-                    # print('not last round')
-                    # Column Mixing (not performed on the last round)
+                    # If we're not in the last round, perform the column mixing step
                     state_block = mix_columns(state_block)
                 
-            # Key Block XOR
+            # Perform the key block XOR step
             state_block = bytearray(a ^ b for a, b in zip(state_block, round_key))
             
 
-        # Finish doing all the things.
-
+        # Save the encrypted bytes back to our array of blocks, then move on to the next block
         state_blocks[i] = state_block
         i = i + 1
 
-    # print("ENC STATE BLOCKS", state_blocks)
-    
+    # Join all the bytes from our blocks, and return all the encrypted bytes
     return bytearray([byte for block in state_blocks for byte in block])
 
 def expand_key(key_bytes):
     required_key_bytes = 32
     required_expansion_bytes = 240
 
-    # key_bytes = bytearray.fromhex(initial_key)
-    # print("Initial key:", binascii.hexlify(key_bytes))
-    # print("Initial key length:", len(key_bytes))
     if len(key_bytes) < required_key_bytes:
-        # TODO: make this a custom exception, and rescue with friendly error message.
         raise ValueError("Need a longer key! Provided key was " + str(len(key_bytes)) + " bytes. " + str(required_key_bytes) + " bytes required.")
 
     # Ignore extra key bytes
     key_bytes = key_bytes[0:required_key_bytes]
 
+    # Generate new bytes in required_key_bytes-byte increments until we have enough
+    # New bytes are generated according to the Rijndael key schedule - https://en.wikipedia.org/wiki/Rijndael_key_schedule
     i = 1
     while len(key_bytes) < required_expansion_bytes:
-        # Generate 32 more bytes
-
         # First add 4 more bytes
         last_4 = key_bytes[-4:] 
         new_bytes = last_4
@@ -199,26 +136,24 @@ def expand_key(key_bytes):
         i = i + 1
         new_bytes = _four_byte_xor(key_bytes, new_bytes, required_key_bytes)
         key_bytes = key_bytes + new_bytes
-        # print("key bytes after " + str(i) + " iteration: " + str(binascii.hexlify(key_bytes)))
 
-        # then create 4 bytes 3 times for 12 more bytes
+        # Then create 4 bytes 3 times for 12 more bytes
         for n in range(3):
             last_4 = key_bytes[-4:]
             new_bytes = last_4
             key_bytes = key_bytes + _four_byte_xor(key_bytes, new_bytes, required_key_bytes)
 
-        # then add 4 more bytes
+        # Then add 4 more bytes
         last_4 = key_bytes[-4:]
         new_bytes = bytearray(map(s_box, last_4))
         key_bytes = key_bytes + _four_byte_xor(key_bytes, new_bytes, required_key_bytes)
 
-        # then create 4 bytes 3 times for 12 more bytes 
+        # Then create 4 bytes 3 times for 12 more bytes 
         for n in range(3):
             last_4 = key_bytes[-4:]
             new_bytes = last_4
             new_bytes = _four_byte_xor(key_bytes, new_bytes, required_key_bytes)
             key_bytes = key_bytes + new_bytes
-
 
     return key_bytes[0:required_expansion_bytes]
 
@@ -232,7 +167,7 @@ def key_schedule_core(word, i):
     # Perform s-box substitution for each byte
     word = bytearray(map(s_box, word))
 
-    # xor the first byte with the rcon value for the current iteration
+    # XOR the first byte with the rcon value for the current iteration
     word[0] = _rcon(i) ^ word[0]
 
     return word
@@ -280,6 +215,7 @@ def s_box(byte):
     return sbox[byte]
 
 def _rcon(i):
+    # Learnt from https://en.wikipedia.org/wiki/Rijndael_key_schedule
     rcon_table = [0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36, 0x6c, 0xd8, 0xab, 0x4d, 0x9a, 
     0x2f, 0x5e, 0xbc, 0x63, 0xc6, 0x97, 0x35, 0x6a, 0xd4, 0xb3, 0x7d, 0xfa, 0xef, 0xc5, 0x91, 0x39, 
     0x72, 0xe4, 0xd3, 0xbd, 0x61, 0xc2, 0x9f, 0x25, 0x4a, 0x94, 0x33, 0x66, 0xcc, 0x83, 0x1d, 0x3a, 
@@ -306,26 +242,31 @@ def _four_byte_xor(key, new_bytes, num_bytes_ago):
     return bytearray(a ^ b for a, b in zip(new_bytes, other_bytes))
 
 def _round_key(full_key, round):
+    # Each round key is 16 bytes long
     round_key_length = 16
     start_index = round * round_key_length
     end_index = start_index + round_key_length
+    # Returns the 16-byte key for a given round number
     return full_key[start_index:end_index]
 
 def inverse_row_transposition(block):
+    # The inverse of the Row Transposition Step
     # Learnt from https://en.wikipedia.org/wiki/Advanced_Encryption_Standard#/media/File:AES-ShiftRows.svg
-    # print("Pre trans", binascii.hexlify(block))
+
+    # Split the block into 4 rows of 4 bytes
     rows = [bytearray(), bytearray(), bytearray(), bytearray()]
     for i in range(len(block)):
         row_index = i % 4
         rows[row_index].append(block[i])
-    
+
+    # Shift bytes around within each row
     for row_index in range(len(rows)):
         row = rows[row_index]
         for _ in range(row_index):
             row.insert(0, row.pop())
 
+    # De-row-ify the bytes, returning them to a standard 16 byte block
     output = bytearray([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])
-    
     row_index = 0
     while row_index < len(rows):
         row = rows[row_index]
@@ -336,24 +277,26 @@ def inverse_row_transposition(block):
             byte_index = byte_index + 1
         row_index = row_index + 1
 
-    # print("Post trans", binascii.hexlify(output))
     return output
 
 def row_transposition(block):
+    # The Row Transposition Step
     # Learnt from https://en.wikipedia.org/wiki/Advanced_Encryption_Standard#/media/File:AES-ShiftRows.svg
-    # print("Pre trans", binascii.hexlify(block))
+    
+    # Split the block into 4 rows of 4 bytes
     rows = [bytearray(), bytearray(), bytearray(), bytearray()]
     for i in range(len(block)):
         row_index = i % 4
         rows[row_index].append(block[i])
     
+    # Shift bytes around within each row
     for row_index in range(len(rows)):
         row = rows[row_index]
         for _ in range(row_index):
             row.append(row.pop(0))
 
+    # De-row-ify the bytes, returning them to a standard 16 byte block
     output = bytearray([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])
-    
     row_index = 0
     while row_index < len(rows):
         row = rows[row_index]
@@ -364,10 +307,10 @@ def row_transposition(block):
             byte_index = byte_index + 1
         row_index = row_index + 1
 
-    # print("Post trans", binascii.hexlify(output))
     return output
 
 def mix_columns(block):
+    # The Mix Columns Step
     columns = []
     while len(block) > 0:
         columns.append(block[0:4])
@@ -378,6 +321,7 @@ def mix_columns(block):
     return bytearray([byte for column in map(mix_single_column, columns) for byte in column])
 
 def inverse_mix_columns(block):
+    # The inverse of the Mix Columns Step
     columns = []
     while len(block) > 0:
         columns.append(block[0:4])
@@ -388,6 +332,7 @@ def inverse_mix_columns(block):
     return bytearray([byte for column in map(inverse_mix_single_column, columns) for byte in column])
 
 def inverse_mix_single_column(column):
+    # Learnt from http://www.samiam.org/mix-column.html
     if (len(column) != 4):
         raise ValueError("Column provided to `inverse_mix_single_column` must be 4 bytes. Provided column was " + str(len(column)) + " bytes.")
 
@@ -405,31 +350,6 @@ def inverse_mix_single_column(column):
 
     return [(value % 256) for value in output]
 
-# def old_mix_single_column(column):
-#     print("OLD")
-#     # Learnt from http://www.samiam.org/mix-column.html
-#     if (len(column) != 4):
-#         raise ValueError("Column provided to `mix_single_column` must be 4 bytes. Provided column was " + str(len(column)) + " bytes.")
-
-#     column = [int(byte) for byte in column]
-#     output = [None, None, None, None]
-#     a = [None, None, None, None]
-#     b = [None, None, None, None]
-#     h = None
-
-#     for c in range(4):
-#         a[c] = column[c]
-#         h = column[c] & 0x80
-#         b[c] = column[c] << 1
-#         if h == 0x80:
-#             b[c] ^= 0x1b
-    
-#     output[0] = b[0] ^ a[3] ^ a[2] ^ b[1] ^ a[1]
-#     output[1] = b[1] ^ a[0] ^ a[3] ^ b[2] ^ a[2]
-#     output[2] = b[2] ^ a[1] ^ a[0] ^ b[3] ^ a[3]
-#     output[3] = b[3] ^ a[2] ^ a[1] ^ b[0] ^ a[0]
-
-#     return [(value % 256) for value in output]
 
 def mix_single_column(column):
     # Learnt from http://www.samiam.org/mix-column.html
