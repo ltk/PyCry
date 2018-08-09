@@ -1,0 +1,155 @@
+#! /usr/bin/env python
+
+import binascii
+import inquirer
+import os
+import secrets
+import sys
+from zipfile import ZipFile
+from pycry_aes import decrypt, encrypt
+
+def main():
+    action = inquirer.prompt([
+        inquirer.List("action", message="Encrypt or Decrypt?", choices=["Encrypt", "Decrypt"], default="Encrypt")
+    ])["action"]
+
+    if action == "Encrypt":
+        prompt_for_encryption()
+    else:
+        prompt_for_decryption()
+
+def prompt_for_encryption():
+    answers = inquirer.prompt([
+        inquirer.List("target", message="Would you like to encrypt a file or a string message?", choices=["String Message", "File"], default="String Message"),
+        inquirer.Password("key", message="Enter a 32-byte, hex-encoded key for encryption, or leave blank to generate a random key")
+    ])
+
+    key = answers["key"]
+
+    # If no key was provided, show the user the generated encryption key
+    # so that they can decrypt them later.
+    if not key:
+        key = secrets.token_hex(32)
+        print("[!] Your generated key is " + key + " . Your data will be unrecoverable without this key, so store it securely. It will be hidden once you continue.")
+
+        # Make sure that the user knows that they need to keep the key safe.
+        proceed = False
+        while not proceed:
+            proceed = inquirer.prompt([
+                inquirer.Confirm("proceed", message="Have you securely recorded this encryption key?", default=True)
+            ])["proceed"]
+        
+        # Delete the encryption key from the terminal output.
+        for _ in range(3):
+            # Move cursor up one line.
+            sys.stdout.write("\033[F")
+            # Clear line.
+            sys.stdout.write("\033[K")
+
+    # Convert the key to bytes
+    key = bytearray.fromhex(key)
+
+    if answers["target"] == "String Message":
+        # If encrypting a string message, prompt for the message
+        message = inquirer.prompt([
+            inquirer.Password("message", message="Enter your message to encrypt")
+        ])["message"]
+        encrypt_string_message(message, key)
+    else:
+        # If encrypting a file/folder, prompt for the path to the file/folder
+        path = inquirer.prompt([
+            inquirer.Text("path", message="Enter the path of the file you want to encrypt")
+        ])["path"]
+        encrypt_file(path, key)
+
+def prompt_for_decryption():
+    answers = inquirer.prompt([
+        inquirer.List("target", message="Would you like to decrypt a file or an encrypted string message?", choices=["Encrypted String Message", "File"], default="Encrypted String Message"),
+        inquirer.Password("key", message="Enter a 32-byte, hex-encoded key for decryption")
+    ])
+
+    key = bytearray.fromhex(answers["key"])
+
+    if answers["target"] == "Encrypted String Message":
+        # If decrypting an encrypted string message, prompt for the message
+        ciphertext = inquirer.prompt([
+            inquirer.Password("ciphertext", message="Enter the encrypted string message to decrypt")
+        ])["ciphertext"]
+        decrypt_string_message(ciphertext, key)
+    else:
+        # If decrypting a file/folder, prompt for the path to the file/folder
+        path = inquirer.prompt([
+            inquirer.Text("path", message="Enter the path of the file you want to decrypt")
+        ])["path"]
+        decrypt_file(path, key)
+
+def encrypt_file(path, key):
+    # To encrypt a file or a folder, create a single zipfile containing all
+    # the file or all folder's files, then encrypt the single zipfile.
+
+    zip_file_name = os.path.basename(path) + ".zip"
+    encrypted_file_name = os.path.basename(path) + ".enc"
+    
+    paths = []
+
+    if os.path.isdir(path):
+        # If encrypting a folder, find all the filepaths within the folder
+        # and add them to the list of filepaths to be included in the zipfile.
+        for root, _, files in os.walk(path):
+            for filename in files:
+                paths.append(os.path.join(root, filename))
+    else:
+        # If encrypting a file, just add the file's path to the list of filepaths
+        # to be included in the zipfile.
+        paths.append(path)
+
+    # Create a zipfile containing the contents of all our added filepaths
+    with ZipFile(zip_file_name, "w") as zip_file:
+        for file in paths:
+            zip_file.write(file)
+
+    # Encrypt the zipfile contents
+    zip_file = open(zip_file_name, "rb")
+    plaintext = bytearray(zip_file.read())
+    ciphertext = encrypt(plaintext, key)
+
+    # Remove the intermediary zipfile
+    zip_file.close()
+    os.remove(zip_file_name)
+
+    # Write out the encrypted zipfile contents to a new file
+    encrypted_file = open(encrypted_file_name, "xb")
+    encrypted_file.write(ciphertext)
+    encrypted_file.close()
+    print("Encryption complete! Encrypted file written to:", encrypted_file_name)
+
+def encrypt_string_message(message, key):
+    ciphertext = encrypt(bytearray(message, encoding="utf-8"), key)
+    print("Encryption complete! Ciphertext is:", str(binascii.hexlify(ciphertext), encoding="utf-8"))
+
+def decrypt_file(path, key):
+    if path[-4:] != ".enc":
+        raise Exception("Provided path must be an encrypted archive (a file with a .enc extension).")
+
+    decrypted_file_name = os.path.basename(path)[0:-4] # Remove the `.enc`
+    zip_file_name = decrypted_file_name + ".zip"
+    encrypted_file = open(path, "rb")
+    ciphertext = bytearray(encrypted_file.read())
+    plaintext = decrypt(ciphertext, key)
+    zip_file = open(zip_file_name, "xb")
+    zip_file.write(plaintext)
+    zip_file.close()
+
+    with ZipFile(zip_file_name, "r") as zip:
+        zip.extractall()
+
+    os.remove(zip_file_name)
+    encrypted_file.close()
+    print("Decryption complete!")
+
+def decrypt_string_message(ciphertext, key):
+    plaintext = decrypt(bytearray.fromhex(ciphertext), key)
+    print("Decryption complete! Plaintext is:", str(plaintext, encoding="utf-8"))
+
+if __name__ == '__main__':
+    main()

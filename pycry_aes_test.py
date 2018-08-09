@@ -2,7 +2,7 @@ import unittest
 import base64
 import binascii
 
-from simple_aes import decrypt, encrypt, expand_key, inverse_mix_single_column, inverse_row_transposition, inverse_s_box, key_schedule_core, mix_single_column, row_transposition, s_box, string_to_bytearray
+from pycry_aes import decrypt, encrypt, expand_key, inverse_mix_single_column, inverse_row_transposition, inverse_s_box, key_schedule_core, mix_single_column, row_transposition, s_box, string_to_bytearray
 
 class TestSimpleAES(unittest.TestCase):
     def setUp(self):

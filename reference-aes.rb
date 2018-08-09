@@ -1,3 +1,7 @@
+# This script allows for the easy production cipher and plain texts using
+# OpenSSL, to serve as a reference to build against.
+# Particularly useful for setting up examples in pycry_aes_test.py.
+
 require "openssl"
 
 puts("Enter plaintext:")
