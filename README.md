@@ -3,15 +3,13 @@ A just-for-fun, please-god-don't-actually-use-this command-line encryption/decry
 
 Also known as Lawson Kurtz's final project for CSCI 1300.
 
-## TODOs
-- Fix file path issue for file encryption/decryption
-
 ## Running the Project
-### Dependencies
-- Python 3 `brew install python`
-- inquirer `pip install inquirer`
+Install the following dependencies:
 
-To run the program, `cd` into this directory and run `./pycry`.
+- Python 3 👉 `brew install python`
+- inquirer 👉 `pip install inquirer`
+
+Then, to run the program, `cd` into this directory and run `./pycry`. Follow the command line prompts.
 
 ## Main Notes
 This program is essentially the complete version of the program I proposed. The one exception is that I excluded the automatic removal of plaintext files after the encryption process and encrypted files after the decryption process because it felt annoying after using it a few times.
