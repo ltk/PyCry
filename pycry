@@ -3,6 +3,7 @@
 import binascii
 import inquirer
 import os
+import re
 import secrets
 import sys
 from zipfile import ZipFile
@@ -25,7 +26,7 @@ def main():
 def prompt_for_encryption():
     answers = inquirer.prompt([
         inquirer.List("target", message="Would you like to encrypt a file or a string message?", choices=["String Message", "File"], default="String Message"),
-        inquirer.Password("key", message="Enter a 32-byte, hex-encoded key for encryption, or leave blank to generate a random key")
+        inquirer.Password("key", message="Enter a 64 char hex key, or leave blank for a random key", validate=lambda _, k: (not k) or re.match('[0-9a-f]{64}', k))
     ])
 
     key = answers["key"]
@@ -69,7 +70,7 @@ def prompt_for_encryption():
 def prompt_for_decryption():
     answers = inquirer.prompt([
         inquirer.List("target", message="Would you like to decrypt a file or an encrypted string message?", choices=["Encrypted String Message", "File"], default="Encrypted String Message"),
-        inquirer.Password("key", message="Enter a 32-byte, hex-encoded key for decryption")
+        inquirer.Password("key", message="Enter a 32-byte, hex-encoded key for decryption", validate=lambda _, k: re.match('[0-9a-f]{64}', k))
     ])
 
     key = bytearray.fromhex(answers["key"])

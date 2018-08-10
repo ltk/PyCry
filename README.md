@@ -1,19 +1,22 @@
 # PyCry
 A just-for-fun, please-god-don't-actually-use-this command-line encryption/decryption program using a from-scratch implementation of AES-256-ECB in Python!
 
-Also known as Lawson Kurtz's final project for CS1300.
+Also known as Lawson Kurtz's final project for CSCI 1300.
 
 ## TODOs
 - Fix file path issue for file encryption/decryption
 
 ## Running the Project
-```
-pip install inquirer
-./pycry
-```
+### Dependencies
+- Python 3 `brew install python`
+- inquirer `pip install inquirer`
+
+To run the program, `cd` into this directory and run `./pycry`.
 
 ## Main Notes
 This program is essentially the complete version of the program I proposed. The one exception is that I excluded the automatic removal of plaintext files after the encryption process and encrypted files after the decryption process because it felt annoying after using it a few times.
+
+One obvious area for improvement is error handling. Right now if an incorrect decryption key is provided, the user is usually shown a string encoding error. Also if a bad parameters are provided to the program (like a non-existant file path), the errors are currently not very informative to the user.
 
 ## Other Notes
 Unit tests for pycry_aes.py can be foundin pycry_aes_test.py. I originally had no plans to dive into automated testing for this project, but it ended up being absolutely critical for the development of the not-so-easily understood underlying AES functions.
