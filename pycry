@@ -78,7 +78,7 @@ def prompt_for_decryption():
     if answers["target"] == "Encrypted String Message":
         # If decrypting an encrypted string message, prompt for the message
         ciphertext = inquirer.prompt([
-            inquirer.Password("ciphertext", message="Enter the encrypted string message to decrypt")
+            inquirer.Password("ciphertext", message="Enter the encrypted string message to decrypt", validate=lambda _, m: re.match('[0-9a-f]+', m))
         ])["ciphertext"]
         decrypt_string_message(ciphertext, key)
     else:
@@ -92,6 +92,7 @@ def encrypt_file(path, key):
     # To encrypt a file or a folder, create a single zipfile containing all
     # the file or all folder's files, then encrypt the single zipfile.
 
+    folder_name = "./encrypted_files/" + secrets.token_hex(10)
     zip_file_name = os.path.basename(path) + ".zip"
     encrypted_file_name = os.path.basename(path) + ".enc"
     
@@ -126,7 +127,12 @@ def encrypt_file(path, key):
     encrypted_file = open(encrypted_file_name, "xb")
     encrypted_file.write(ciphertext)
     encrypted_file.close()
-    print("Encryption complete! Encrypted file written to:", encrypted_file_name)
+    # Create a new folder for the file within encrypted_files, and move the file there
+    new_path = folder_name + "/" + encrypted_file_name
+    os.mkdir(folder_name)
+    os.rename(encrypted_file_name, new_path)
+
+    print("Encryption complete! Encrypted file written to:", new_path)
 
 def encrypt_string_message(message, key):
     ciphertext = encrypt(bytearray(message, encoding="utf-8"), key)
@@ -136,6 +142,7 @@ def decrypt_file(path, key):
     if path[-4:] != ".enc":
         raise Exception("Provided path must be an encrypted archive (a file with a .enc extension).")
 
+    folder_name = "./decrypted_files/" + secrets.token_hex(10)
     decrypted_file_name = os.path.basename(path)[0:-4] # Remove the `.enc`
     zip_file_name = decrypted_file_name + ".zip"
     encrypted_file = open(path, "rb")
@@ -146,11 +153,11 @@ def decrypt_file(path, key):
     zip_file.close()
 
     with ZipFile(zip_file_name, "r") as zip:
-        zip.extractall()
+        zip.extractall(folder_name)
 
     os.remove(zip_file_name)
     encrypted_file.close()
-    print("Decryption complete!")
+    print("Decryption complete! Decrypted files can be found in:", folder_name)
 
 def decrypt_string_message(ciphertext, key):
     plaintext = decrypt(bytearray.fromhex(ciphertext), key)

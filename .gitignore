@@ -1,2 +1,6 @@
 __pycache__/
 .vscode
+encrypted_files/*
+!encrypted_files/.keep
+decrypted_files/*
+!decrypted_files/.keep
