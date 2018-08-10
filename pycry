@@ -9,6 +9,10 @@ from zipfile import ZipFile
 from pycry_aes import decrypt, encrypt
 
 def main():
+    # Don't let anyone try to run this without Python 3
+    if sys.version_info[0] < 3:
+        raise Exception("Please use Python 3.")
+
     action = inquirer.prompt([
         inquirer.List("action", message="Encrypt or Decrypt?", choices=["Encrypt", "Decrypt"], default="Encrypt")
     ])["action"]
